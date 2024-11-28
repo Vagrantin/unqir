@@ -60,15 +60,22 @@ pub fn run(config: Config) -> MyResult<()> {
             std::process::exit(1)
         },
         Ok(_file) => {
+            //Initiate Current line being read and the previous line to be compared with
             let mut line = String::new();
             let mut previous = String::new();
+            //Initialize the count to 0, this is the number of time we have found identic lines
             let mut count = 0;
+            //Open either an input file or stdin depending on what is provided in the cli
             let mut file = open(&config.in_file)
                 .map_err(|e| format!("{}: {}", config.in_file,e))?;
+            //Open an output file or an stdout depending on what is provided in the cli
             let mut out_file: Box<dyn Write> = match &config.out_file {
                 Some(out_name) => Box::new(File::create(out_name)?),
                 _ => Box::new(io::stdout()),
             };
+            //This closure will have as parameters the count and the content of the previously read
+            //If the count is at 0 we don't write anything else we either write the output to file
+            //or stdout with tho count or not if specified in the CLI ( config.count )
             let mut print = |count:u64, text: &str| -> MyResult<()> {
                 if count > 0 {
                     if config.count {
@@ -79,20 +86,29 @@ pub fn run(config: Config) -> MyResult<()> {
                     };
                 Ok(())
                 };
+            //Start an ifinite loop
             loop {
+                //We start to read the file or stdin line by line until line return 
                 let bytes = file.read_line(&mut line)?;
+                //If we don't have any data it meams we are at the end of the file so we break out
+                //of the loop.
                 if bytes == 0 {
                     break;
                 }
-
+                //If the current line and the previous line are different we trigger the print()
+                //closure then we backup the current line in the previous variable for future check
+                //and reset the count to 0
                 if line.trim_end() != previous.trim_end() { 
                     print(count,&previous)?;
                     previous = line.clone();
                     count = 0;
                 }
+                // if both line are the same we increase the count by one then we clear the line
+                // buffer to get the next line in the next round.
                 count += 1;
                 line.clear();
             }
+            //finally we handle the last line of the file
             print(count,&previous)?;
         
     Ok(())
