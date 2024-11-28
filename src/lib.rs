@@ -2,7 +2,7 @@ use clap::{App, Arg};
 use std:: {
     error::Error,
     fs::File,
-    io::{self,BufRead,BufReader},
+    io::{self,BufRead,BufReader,Write},
 };
 
 type MyResult<T> = Result<T,Box<dyn Error>>;
@@ -56,54 +56,47 @@ fn open(filename: &str) -> MyResult<Box<dyn BufRead>> {
 pub fn run(config: Config) -> MyResult<()> {
     match open(&config.in_file) {
         Err(_err) => {
-            eprint!("{}: .* [(]os error 2[)]", config.in_file);
+            eprintln!("{}: .* [(]os error 2[)]", config.in_file);
             std::process::exit(1)
         },
-        Ok(file) => {
-            if config.count {
-                let mut myfile = Vec::new();
-                let lines = file.lines().map(|v| v).collect::<Result<String,_>>().unwrap();
-                for c in lines.chars() {
-                    myfile.push(c); 
+        Ok(_file) => {
+            let mut line = String::new();
+            let mut previous = String::new();
+            let mut count = 0;
+            let mut file = open(&config.in_file)
+                .map_err(|e| format!("{}: {}", config.in_file,e))?;
+            let mut out_file: Box<dyn Write> = match &config.out_file {
+                Some(out_name) => Box::new(File::create(out_name)?),
+                _ => Box::new(io::stdout()),
+            };
+            let mut print = |count:u64, text: &str| -> MyResult<()> {
+                if count > 0 {
+                    if config.count {
+                        write!(out_file,"{:>4} {}", count, text)?;
+                               } else {
+                                   write!(out_file,"{}",text)?;
+                               }
+                    };
+                Ok(())
+                };
+            loop {
+                let bytes = file.read_line(&mut line)?;
+                if bytes == 0 {
+                    break;
                 }
-//                myfile.dedup();
-                for x in &myfile {
-                    println!("{x}");
-//                    println!("{}",myfile.len())
+
+                if line.trim_end() != previous.trim_end() { 
+                    print(count,&previous)?;
+                    previous = line.clone();
+                    count = 0;
                 }
-                for x in &myfile {
-                    let pre_el = String::new();
-                    let el = String::new();
-                    let mut count = 0;
-                    let pre_el = x;
-                    let el = x;
-                    if pre_el == el {
-                        count += 1
-                    }
-                        println!("test {count} {x}");
-                }
+                count += 1;
+                line.clear();
             }
-            /*
-            let mut prevline = &String::new();
-            for (_line_num,line)  in file.lines().enumerate() {
-                let line = line?;
-                prevline = &line;
-                let mut count = 0;
-                if &line == prevline {
-                    count += 1;
-                }
-                println!("{} {}", count,line)
-            }
-            */
-
-        }
-
-       // println!(" c'est mon fichier ? {:?}", config.in_file );
-    }
-    /*
-    println!("{:?}", config);
-
-    */
+            print(count,&previous)?;
+        
     Ok(())
+}
+}
 }
 
